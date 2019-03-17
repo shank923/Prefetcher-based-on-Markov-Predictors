@@ -149,8 +149,14 @@ void prefetch_access(AccessStat stat)
       pf_addr = get_node(stat.mem_addr);
       for(int i = 0; i < LOOKAHEAD; i++){
         if(pf_addr == 0){
-          pf_addr = stat.mem_addr + BLOCK_SIZE * (1 + i);
-          if(i == 1)
+          pf_addr = stat.mem_addr + BLOCK_SIZE;
+          if(!in_mshr_queue(pf_addr) && !in_cache(pf_addr))
+            issue_prefetch(pf_addr);
+
+          pf_addr = stat.mem_addr + BLOCK_SIZE * 2;
+          if(!in_mshr_queue(pf_addr) && !in_cache(pf_addr))
+            issue_prefetch(pf_addr);
+
             break;
         } else{
           pf_addr = get_node(pf_addr);
