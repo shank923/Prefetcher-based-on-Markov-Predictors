@@ -1,3 +1,9 @@
+/*
+ * A sample prefetcher which does sequential one-block lookahead.
+ * This means that the prefetcher fetches the next block _after_ the one that
+ * was just accessed. It also ignores requests to blocks already in the cache.
+ */
+
 #include "interface.hh"
 #include <vector>
 #include <algorithm>
@@ -54,7 +60,6 @@ void push_addr(AccessStat stat){
       new_node.addr = stat.mem_addr;
       new_node.time = stat.time;
 
-      //find and remove the oldest node
       if(node_addr.size() == SIZE){
           Tick old_timer = stat.time;
           for(vector<markov>::iterator it = node_addr.begin(); it != node_addr.end(); ++it){
@@ -81,7 +86,6 @@ void push_predictors(AccessStat stat){
     new_node.time = stat.time;
     new_node.weight = 0;
 
-    //find and remove the oldest predictor node_addr
     if(node_addr.back().predictors.size() == SIZE_P){
       Tick old_timer = stat.time;
       for(vector<predictor>::iterator it = node_addr.back().predictors.begin(); it != node_addr.back().predictors.end(); ++it){
@@ -104,12 +108,10 @@ Addr get_addr(markov curr_node){
     Addr next_addr = 0;
     int max_weight = -1;
 
-    if(!curr_node.predictors.empty()){
-      for(vector<predictor>::iterator it = curr_node.predictors.begin(); it != curr_node.predictors.end(); ++it){
-        if(it->weight > max_weight){
-          max_weight = it->weight;
-          next_addr = it->addr;
-        }
+    for(vector<predictor>::iterator it = curr_node.predictors.begin(); it != curr_node.predictors.end(); ++it){
+      if(it->weight > max_weight){
+        max_weight = it->weight;
+        next_addr = it->addr;
       }
     }
 
@@ -148,21 +150,16 @@ void prefetch_access(AccessStat stat)
       push_addr(stat);
       pf_addr = get_node(stat.mem_addr);
       for(int i = 0; i < LOOKAHEAD; i++){
-        if(pf_addr == 0){
-          pf_addr = stat.mem_addr + BLOCK_SIZE;
-          if(!in_mshr_queue(pf_addr) && !in_cache(pf_addr))
-            issue_prefetch(pf_addr);
-
-          pf_addr = stat.mem_addr + BLOCK_SIZE * 2;
-          if(!in_mshr_queue(pf_addr) && !in_cache(pf_addr))
-            issue_prefetch(pf_addr);
-
-            break;
-        } else{
-          pf_addr = get_node(pf_addr);
-        }
         if(!in_mshr_queue(pf_addr) && !in_cache(pf_addr)){
-          issue_prefetch(pf_addr);
+          if(pf_addr == 0) {
+              pf_addr = stat.mem_addr + BLOCK_SIZE;
+              issue_prefetch(pf_addr);
+              pf_addr = stat.mem_addr + BLOCK_SIZE * 2;
+              issue_prefetch(pf_addr);
+              break;
+          }
+            issue_prefetch(pf_addr);
+            pf_addr = get_node(pf_addr);
       }
     }
   }
